@@ -40,4 +40,4 @@ def test_version():
 
     data = response.get_json()
 
-    assert data["version"] == "1.0.0"
+    assert data["version"] == "1.1.0"
