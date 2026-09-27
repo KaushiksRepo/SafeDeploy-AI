@@ -1,4 +1,4 @@
-name: SafeDeploy AI - CI
+name: SafeDeploy AI - CI/CD
 
 on:
   push:
@@ -9,7 +9,18 @@ on:
     branches:
       - master
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_LOGIN_SERVER: safedeployaiacr.azurecr.io
+  IMAGE_NAME: safedeploy-app
+  AKS_RESOURCE_GROUP: rg-safedeploy-ai
+  AKS_CLUSTER_NAME: aks-safedeploy-ai
+
 jobs:
+
   test:
     runs-on: ubuntu-latest
 
@@ -32,7 +43,8 @@ jobs:
         working-directory: application
         run: pytest tests
 
-  docker-build:
+
+  build-and-push:
     runs-on: ubuntu-latest
     needs: test
 
@@ -40,8 +52,61 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        run: |
+          az acr login --name safedeployaiacr
+
       - name: Build Docker image
         run: |
           docker build \
-            -t safedeploy-app:${{ github.sha }} \
+            -t $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }} \
             ./application
+
+      - name: Push Docker image to ACR
+        run: |
+          docker push \
+            $ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}
+
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group $AKS_RESOURCE_GROUP \
+            --name $AKS_CLUSTER_NAME \
+            --overwrite-existing
+
+      - name: Deploy image to AKS
+        run: |
+          kubectl set image deployment/safedeploy-app \
+            safedeploy-app=$ACR_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}
+
+      - name: Wait for deployment rollout
+        run: |
+          kubectl rollout status deployment/safedeploy-app --timeout=180s
+
+      - name: Verify deployment
+        run: |
+          kubectl get deployment safedeploy-app
+          kubectl get pods -l app=safedeploy-app
