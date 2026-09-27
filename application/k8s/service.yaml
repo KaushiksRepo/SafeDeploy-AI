@@ -9,6 +9,7 @@ spec:
 
   selector:
     app: safedeploy-app
+    version: stable
 
   ports:
     - protocol: TCP
