@@ -20,9 +20,7 @@ def health():
 
 @app.route("/version")
 def version():
-    return jsonify({
-        "version": "1.0.0"
-    })
+    return jsonify({"version": "1.1.0"})
 
 
 if __name__ == "__main__":

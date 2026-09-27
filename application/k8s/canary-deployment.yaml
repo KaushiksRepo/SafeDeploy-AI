@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: safedeploy-canary
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: safedeploy-app
+      version: canary
+
+  template:
+    metadata:
+      labels:
+        app: safedeploy-app
+        version: canary
+
+    spec:
+      containers:
+        - name: safedeploy-app
+          image: safedeployaiacr.azurecr.io/safedeploy-app:1.0
+
+          ports:
+            - containerPort: 5000
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
